@@ -1,0 +1,3 @@
+# Possible laptop network speed shell script
+
+START=0;while true; do CURRENT=`ip -s link show enx2800af245ce4 | head -4 | tail -1| awk '{print $1}'`; BYTES=$((CURRENT-START)); START=${CURRENT}; echo ${BYTES}; sleep 1; done
