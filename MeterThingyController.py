@@ -20,6 +20,7 @@ start_time = datetime.now()
 # Used by calling it with the last returned chaser value.
 def chaser(desired, current_value, increment):
 
+    print(f"current:{current_value} increment {increment}")
     if current_value != desired:
         if current_value - desired < increment:
             current_value += increment
@@ -65,7 +66,7 @@ async def main():
     ASUS.start()
     
     max_rx_speed = 50
-    max_load_avg_1 = 5
+    max_load_avg_1 = 3
     m1_smoothed = 32768
     m2_smoothed = 1
  
@@ -107,11 +108,11 @@ async def main():
         router_rx_exp = reverse_exponential(router_rx_speed, full_scale = 50.0, curve_factor = 4.0)
 
         m1_duty = int(min((router_rx_exp/max_rx_speed*32768)+32768, 65535))
-        m1_smoothed = chaser(m1_duty, m1_smoothed, 1500)
+        m1_smoothed = chaser(m1_duty, m1_smoothed, 2000)
         data["meter"]["m1"]["v"] = m1_smoothed
         
         m2_duty = int(load_average_1/max_load_avg_1 * 65535)
-        m2_smoothed = chaser(m2_duty, m2_smoothed, 500)
+        m2_smoothed = chaser(m2_duty, m2_smoothed, 1000)
         data["meter"]["m2"]["v"] = m2_smoothed + 1 #m2_duty
 
 
@@ -128,8 +129,8 @@ async def main():
         
         slide_factor += 1
 
-        data["LCD"]["0"] = f"R{router_rx_speed}  "[:16]
-        data["LCD"]["1"] = f"{duration} A{load_average_1:.2f}    "[:16]
+        data["LCD"]["0"] = f"R{router_rx_speed:02} PT{int(tx_time*1000)} L{load_average_1:.2f}           "[:16]
+        data["LCD"]["1"] = f"{duration}          "[:16]
       
         # Transmit data and return averrage packet time
 
