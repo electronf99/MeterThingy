@@ -36,7 +36,7 @@ def chaser(desired, current_value, increment=100, decrement=100):
 
 
 # I want to be able to make the needle on meters move
-# more aggrsivley at the bottom of the scale and
+# more aggresively at the bottom of the scale and
 # slow down as it approaches full scale
 # This is a reverse exponentiation 
 # 
