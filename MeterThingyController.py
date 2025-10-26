@@ -18,25 +18,25 @@ start_time = datetime.now()
 # function that takes the desired value and increments it
 # so that you can smooth out changes in value.
 # Used by calling it with the last returned chaser value.
-def chaser(desired, current_value, increment):
+def chaser(desired, current_value, increment=100, decrement=100):
 
-    print(f"current:{current_value} increment {increment}")
     if current_value != desired:
-        if current_value - desired < increment:
-            current_value += increment
+        
+        # On the way up
         if current_value < desired:
-            current_value += 1
+            current_value += increment
 
-        elif current_value - desired > increment:
-            current_value -= increment
-            if current_value > desired:
-                current_value -= 1
-    
+        # On the way down
+        if current_value > desired:
+            current_value -= decrement
+            if current_value < decrement:
+                current_value = 0
+        
     return current_value
 
 
 # I want to be able to make the needle on meters move
-# more aggrsivley at the bottom of the scale and
+# more aggresively at the bottom of the scale and
 # slow down as it approaches full scale
 # This is a reverse exponentiation 
 # 
@@ -108,11 +108,11 @@ async def main():
         router_rx_exp = reverse_exponential(router_rx_speed, full_scale = 50.0, curve_factor = 4.0)
 
         m1_duty = int(min((router_rx_exp/max_rx_speed*32768)+32768, 65535))
-        m1_smoothed = chaser(m1_duty, m1_smoothed, 2000)
+        m1_smoothed = chaser(m1_duty, m1_smoothed, increment=3000, decrement=1000)
         data["meter"]["m1"]["v"] = m1_smoothed
         
         m2_duty = int(load_average_1/max_load_avg_1 * 65535)
-        m2_smoothed = chaser(m2_duty, m2_smoothed, 1000)
+        m2_smoothed = chaser(m2_duty, m2_smoothed, increment=1000, decrement=1000)
         data["meter"]["m2"]["v"] = m2_smoothed + 1 #m2_duty
 
 
@@ -146,13 +146,12 @@ async def main():
 
         if last_fail_count != transmitter.failed_packets:
             now = datetime.now()
-
-            print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} TX: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
+            print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
                     f"RX: {router_rx_speed:3d} RX_EXP: {router_rx_exp}  {'-' * int(router_rx_speed / 3 )}")
         else:
             #print(f"\r{' '*132}", end="")
-            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} TX: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
-                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m2_smoothed}  {'-' * int(router_rx_speed / 3 )}", end="\n")
+            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
+                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]", end="\n")
 
 
         last_fail_count = transmitter.failed_packets
