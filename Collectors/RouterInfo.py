@@ -146,7 +146,7 @@ class RouterInfo:
         :returns: JSON with current up and down stream in Mbit/s and totals since last reboot
         """
         meas_1 = self.__get('netdev(appobj)')
-        time.sleep(2)
+        time.sleep(0.5)
         meas_2 = self.__get('netdev(appobj)')
         meas_1 = json.loads(meas_1)
         meas_2 = json.loads(meas_2)
