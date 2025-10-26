@@ -1,6 +1,7 @@
 from bleak import BleakClient, BleakError, BleakScanner
 import msgpack
 from MeterThingy.ble20Packets import ble20Packets
+import time
 from time import sleep
 
 
@@ -28,29 +29,43 @@ class Transmitter:
             await self.client.disconnect()
             print("Disconnected")
 
-    async def send_data(self, data: bytes):
+    async def send_data(self, data: bytes, ack):
         if not self.client.is_connected:
             print("Not Connected")
             await self.connect()
         try:
-            await self.client.write_gatt_char(self.char_uuid, data)
+            await self.client.write_gatt_char(self.char_uuid, data, ack)
+            time.sleep(0.05)
             #print(f"Sent: {data}")
         except BleakError as e:
             print(f"Write failed: {e}")
             raise
 
-    async def transmit(self, data: dict):
+    async def transmit(self, data: dict, wait):
         
         # Packet list handler
 
         mpack = msgpack.packb(data)
         packets = self.packer.build_packets(mpack)
-    
+        duration = 0
         try:
+            start_time = time.perf_counter()
+            count = 1
             for packet in packets:
-                await self.send_data(packet)
+                count += 1
+                if wait is True and count == len(packets):
+                    print("Waiting")
+                    ack = True
+                else:
+                    ack = False
+                await self.send_data(packet, ack)
+            end_time = time.perf_counter()
+            duration = (end_time - start_time) / float(len(packets))
+
         except Exception as e:
             print(f"Error: {e}, disconnect")
             self.failed_packets += 1
             await self.disconnect()
+        
+        return duration
 
