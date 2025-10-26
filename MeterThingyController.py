@@ -20,18 +20,18 @@ start_time = datetime.now()
 # Used by calling it with the last returned chaser value.
 def chaser(desired, current_value, increment=100, decrement=100):
 
-    print(f"current:{current_value} increment {increment}")
     if current_value != desired:
-        if current_value - desired < increment:
-            current_value += increment
+        
+        # On the way up
         if current_value < desired:
-            current_value += 1
+            current_value += increment
 
-        elif current_value - desired > decrement:
+        # On the way down
+        if current_value > desired:
             current_value -= decrement
-            if current_value > desired:
-                current_value -= 1
-    
+            if current_value < decrement:
+                current_value = 0
+        
     return current_value
 
 
@@ -146,13 +146,12 @@ async def main():
 
         if last_fail_count != transmitter.failed_packets:
             now = datetime.now()
-
-            print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} TX: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
+            print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
                     f"RX: {router_rx_speed:3d} RX_EXP: {router_rx_exp}  {'-' * int(router_rx_speed / 3 )}")
         else:
             #print(f"\r{' '*132}", end="")
-            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} TX: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
-                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m2_smoothed}  {'-' * int(router_rx_speed / 3 )}", end="\n")
+            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
+                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]", end="\n")
 
 
         last_fail_count = transmitter.failed_packets
