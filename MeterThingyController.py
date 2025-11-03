@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 import math
 import os
+import argparse
 
 from MeterThingy import Transmitter
 from Collectors.ASUSWrtThread import ASUSWrtThread
@@ -54,10 +55,15 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 # Main function. Async to handle threading bluetooth
 
-async def main():
+async def main(location):
 
+    ble_mac = {
+        "home" : "2C:CF:67:E4:D5:10",
+        "work" : "2C:CF:67:98:CA:5E"
+    }
     # Using Mac. Should figure out how to find mac based on name.
-    ble_address = "2C:CF:67:E4:D5:10"
+
+    ble_address = ble_mac[location]
     characteristic_uuid = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
     
     
@@ -157,4 +163,10 @@ async def main():
         last_fail_count = transmitter.failed_packets
 
 if __name__ == "__main__":
-    asyncio.run(main())
+
+    parser = argparse.ArgumentParser(description="Run main with location context.")
+    parser.add_argument("--location", choices=["home", "work"], default="home",
+                        help="Specify the location: 'home' or 'work'")
+    args = parser.parse_args()
+
+    asyncio.run(main(args.location))
