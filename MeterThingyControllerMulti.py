@@ -9,6 +9,7 @@ import argparse
 
 from MeterThingy import Transmitter
 from Collectors.ASUSWrtThread import ASUSWrtThread
+from Collectors.LocalNetThread import LocalNetThread
 
 # Global variable to hold start_time
 # It will keep updating regardless of what happens
@@ -59,17 +60,21 @@ async def main(location):
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
-        "home" : "2C:CF:67:E4:D5:10",
+        "home" : "2C:CF:67:F3:AC:37",
         "work" : "2C:CF:67:F3:AC:37"
     }
 
     ble_address = ble_mac[location]
     characteristic_uuid = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
      
-    # Startup thread to retrieve router stats from Asus router
-    ASUS = ASUSWrtThread()
-    ASUS.start()
-    
+    # Startup thread to retrieve router stats from a COllector
+    if location == "work":
+        CollectorThread = LocalNetThread()
+    else:
+        CollectorThread = ASUSWrtThread()
+
+    CollectorThread.start()
+
     max_rx_speed = 50
     max_load_avg_1 = 3
     m1_smoothed = 32768
@@ -99,7 +104,7 @@ async def main(location):
     loop = 0
     while True:
 
-        router_info = ASUS.get_latest()
+        router_info = CollectorThread.get_latest()
         router_rx_speed = int(router_info['speed']['rx']) #* 3
         if router_rx_speed > 50:
             router_rx_speed=50
