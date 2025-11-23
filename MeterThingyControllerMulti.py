@@ -122,7 +122,7 @@ async def main(location):
         data["meter"]["m1"]["v"] = m1_smoothed
         
         m2_duty = int(load_average_1/max_load_avg_1 * 65535)
-        m2_smoothed = chaser(m2_duty, m2_smoothed, increment=1000, decrement=1000)
+        m2_smoothed = chaser(m2_duty, m2_smoothed, increment=1000, decrement=500)
         data["meter"]["m2"]["v"] = m2_smoothed + 1 #m2_duty
 
 
