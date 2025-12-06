@@ -64,7 +64,7 @@ class LocalNetThread(threading.Thread):
             rx2 = self.get_rx_bytes(self.iface)
 
             rx_bps = min(50, (rx2 - rx1) / interval / 10000)
-            print(f"{rx_bps:.0f} {'-' * int(rx_bps)}")
+            #print(f"{rx_bps:.0f} {'-' * int(rx_bps)}")
 
 
             self.average_speed["speed"]["rx"] = rx_bps
