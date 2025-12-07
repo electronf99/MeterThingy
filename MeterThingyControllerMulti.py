@@ -153,6 +153,9 @@ async def main(location):
         else:
             ack = False
         
+        # Trying to figure out why it keeps hanging.
+        ack = False
+        
         #ack=True
         
         tx_time = await transmitter.transmit(data, ack)
