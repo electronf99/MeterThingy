@@ -76,7 +76,7 @@ class ASUSWrtThread(threading.Thread):
                 print("*****")
                 print(error) 
             
-            time.sleep(0.1)
+            time.sleep(0.5)
 
     def get_latest(self):
         return self.average_speed  
