@@ -135,22 +135,25 @@ async def main(location):
         minutes, seconds = divmod(remainder, 60)
 
 
-        duration = f"{days} {hours:02}:{minutes:02}:{seconds:02}"
+        #duration = f"{days} {hours:02}:{minutes:02}:{seconds:02}"
+        duration = f"{days} {hours:02}:{minutes:02}"
         
         slide_factor += 1
 
         data["LCD"]["0"] = f"R{router_rx_speed:02} PT{int(tx_time*1000)} L{load_average_1:.2f}           "[:16]
-        data["LCD"]["1"] = f"{duration}          "[:16]
+        data["LCD"]["1"] = f"{duration} L{load_average_1:.2f}      "[:16]
       
         # Transmit data and return averrage packet time
 
         # print(data)
         loop += 1
-        if loop == 120:
+        if loop == 5:
             ack = True
             loop = 0
         else:
             ack = False
+        
+        #ack=True
         
         tx_time = await transmitter.transmit(data, ack)
 
