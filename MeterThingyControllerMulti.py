@@ -60,8 +60,8 @@ async def main(location):
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
-        "home" : "2C:CF:67:F3:B4:DD",
-        "work" : "2C:CF:67:F3:B4:DD"
+        "home" : "2C:CF:67:F3:AF:3D",
+        "work" : "2C:CF:67:F3:AF:3D"
     }
 
     ble_address = ble_mac[location]
