@@ -55,11 +55,11 @@ class Transmitter:
                 count += 1
                 if wait is True and count == len(packets):
                     print("Requesting ack.. ", end="")
-                    ack = True
+                    await self.send_data(packet, True)
+                    print("ack received")
                 else:
-                    ack = False
-                await self.send_data(packet, ack)
-                print("ack received")
+                    await self.send_data(packet, False)
+                
             end_time = time.perf_counter()
             duration = (end_time - start_time) / float(len(packets))
 
