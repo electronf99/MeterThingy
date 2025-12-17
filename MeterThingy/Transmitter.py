@@ -35,7 +35,7 @@ class Transmitter:
             await self.connect()
         try:
             await self.client.write_gatt_char(self.char_uuid, data, ack)
-            time.sleep(0.08)
+            time.sleep(0.05)
             #print(f"Sent: {data}")
         except BleakError as e:
             print(f"Write failed: {e}")
