@@ -118,7 +118,7 @@ async def main(location):
         router_rx_exp = reverse_exponential(router_rx_speed, full_scale = 50.0, curve_factor = 4.0)
 
         m1_duty = int(min((router_rx_exp/max_rx_speed*32768)+32768, 65535))
-        m1_smoothed = chaser(m1_duty, m1_smoothed, increment=3000, decrement=1000)
+        m1_smoothed = chaser(m1_duty, m1_smoothed, increment=2000, decrement=1000)
         data["meter"]["m1"]["v"] = m1_smoothed
         
         m2_duty = int(load_average_1/max_load_avg_1 * 65535)
