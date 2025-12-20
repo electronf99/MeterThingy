@@ -102,6 +102,7 @@ async def main(location):
     slide_factor = 0
     last_fail_count = -1
     loop = 0
+    tx_count=0
     while True:
 
         router_info = CollectorThread.get_latest()
@@ -159,14 +160,14 @@ async def main(location):
         #ack=True
         
         tx_time = await transmitter.transmit(data, ack)
-
+        tx_count += 1
         if last_fail_count != transmitter.failed_packets:
             now = datetime.now()
             print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
                     f"RX: {router_rx_speed:3d} RX_EXP: {router_rx_exp}  {'-' * int(router_rx_speed / 3 )}")
         else:
             #print(f"\r{' '*132}", end="")
-            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
+            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
                     f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]", end="\n")
 
 
