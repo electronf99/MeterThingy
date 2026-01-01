@@ -12,6 +12,7 @@ class Transmitter:
         self.client = BleakClient(address)
         self.packer = ble20Packets(message_id=1, max_payload=17)
         self.failed_packets = 0
+        self.sent_packets = 0
 
     async def connect(self):
         sleep(1)
@@ -54,14 +55,15 @@ class Transmitter:
             for packet in packets:
                 count += 1
                 if wait is True and count == len(packets):
-                    print("Waiting")
-                    ack = True
+                    print("Requesting ack.. ", end="")
+                    await self.send_data(packet, True)
+                    print("ack received")
                 else:
-                    ack = False
-                await self.send_data(packet, ack)
+                    await self.send_data(packet, False)
+                
             end_time = time.perf_counter()
             duration = (end_time - start_time) / float(len(packets))
-
+            self.sent_packets += 1
         except Exception as e:
             print(f"Error: {e}, disconnect")
             self.failed_packets += 1
