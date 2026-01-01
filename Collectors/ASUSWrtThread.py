@@ -5,8 +5,6 @@ from datetime import datetime
 
 from Collectors.RouterInfo import RouterInfo
 
-import pprint
-
 class ASUSWrtThread(threading.Thread):
 
     def __init__(self):
@@ -76,7 +74,7 @@ class ASUSWrtThread(threading.Thread):
                 print("*****")
                 print(error) 
             
-            time.sleep(0.1)
+            time.sleep(0.5)
 
     def get_latest(self):
         return self.average_speed  

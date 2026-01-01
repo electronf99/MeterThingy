@@ -5,9 +5,11 @@ import time
 from datetime import datetime
 import math
 import os
+import argparse
 
 from MeterThingy import Transmitter
 from Collectors.ASUSWrtThread import ASUSWrtThread
+from Collectors.LocalNetThread import LocalNetThread
 
 # Global variable to hold start_time
 # It will keep updating regardless of what happens
@@ -54,18 +56,26 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 # Main function. Async to handle threading bluetooth
 
-async def main():
+async def main(location):
 
     # Using Mac. Should figure out how to find mac based on name.
-    ble_address = "2C:CF:67:E4:D5:10"
+    ble_mac = {
+        "home" : "2C:CF:67:F3:AF:3D",
+        "work" : "2C:CF:67:F3:AF:3D"
+    }
+
+    ble_address = ble_mac[location]
     characteristic_uuid = "6E400002-B5A3-F393-E0A9-E50E24DCCA9E"
-    
-    
-    # Startup thread to retrieve router stats from Asus router
-    ASUS = ASUSWrtThread()
-    ASUS.start()
-    
-    max_rx_speed = 50
+     
+    # Startup thread to retrieve router stats from a COllector
+    if location == "work":
+        CollectorThread = LocalNetThread()
+    else:
+        CollectorThread = ASUSWrtThread()
+
+    CollectorThread.start()
+
+    max_rx_speed = 100
     max_load_avg_1 = 3
     m1_smoothed = 32768
     m2_smoothed = 1
@@ -92,12 +102,13 @@ async def main():
     slide_factor = 0
     last_fail_count = -1
     loop = 0
+    tx_count=0
     while True:
 
-        router_info = ASUS.get_latest()
+        router_info = CollectorThread.get_latest()
         router_rx_speed = int(router_info['speed']['rx']) #* 3
-        if router_rx_speed > 50:
-            router_rx_speed=50
+        if router_rx_speed > 75:
+            router_rx_speed = 75
         
         
         load_average_1, load_5, load_15 = os.getloadavg()
@@ -105,14 +116,14 @@ async def main():
             load_average_1=5
 
 
-        router_rx_exp = reverse_exponential(router_rx_speed, full_scale = 50.0, curve_factor = 4.0)
+        router_rx_exp = reverse_exponential(router_rx_speed, full_scale = 75.0, curve_factor = 4.0)
 
-        m1_duty = int(min((router_rx_exp/max_rx_speed*32768)+32768, 65535))
-        m1_smoothed = chaser(m1_duty, m1_smoothed, increment=3000, decrement=1000)
+        m1_duty = int(min((router_rx_exp/max_rx_speed*32768)+32768, 60000))
+        m1_smoothed = chaser(m1_duty, m1_smoothed, increment=2000, decrement=1000)
         data["meter"]["m1"]["v"] = m1_smoothed
         
-        m2_duty = int(load_average_1/max_load_avg_1 * 65535)
-        m2_smoothed = chaser(m2_duty, m2_smoothed, increment=1000, decrement=1000)
+        m2_duty = int(load_average_1/max_load_avg_1 * 60000)
+        m2_smoothed = chaser(m2_duty, m2_smoothed, increment=1000, decrement=500)
         data["meter"]["m2"]["v"] = m2_smoothed + 1 #m2_duty
 
 
@@ -125,36 +136,55 @@ async def main():
         minutes, seconds = divmod(remainder, 60)
 
 
-        duration = f"{days} {hours:02}:{minutes:02}:{seconds:02}"
+        duration = f"{days} {hours:02}:{minutes:02}" #:{seconds:02}"
+        #duration = f"{days} {hours:02}:{minutes:02}"
         
         slide_factor += 1
+        failedK = "{:.1f}".format(transmitter.failed_packets/1000)
 
         data["LCD"]["0"] = f"R{router_rx_speed:02} PT{int(tx_time*1000)} L{load_average_1:.2f}           "[:16]
-        data["LCD"]["1"] = f"{duration}          "[:16]
+        data["LCD"]["1"] = f"{duration} F:{failedK}     "[:16]
       
         # Transmit data and return averrage packet time
 
         # print(data)
         loop += 1
-        if loop == 120:
+        if loop == 30:
             ack = True
             loop = 0
         else:
             ack = False
         
+        # Trying to figure out why it keeps hanging.
+        #ack = False
+        
+        #ack=True
+        
         tx_time = await transmitter.transmit(data, ack)
-
+        tx_count += 1
         if last_fail_count != transmitter.failed_packets:
             now = datetime.now()
-            print(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
-                    f"RX: {router_rx_speed:3d} RX_EXP: {router_rx_exp}  {'-' * int(router_rx_speed / 3 )}")
+            print("--- failed ---")
+
+            with open("/tmp/failed.out", "a") as file:
+                file.write(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
+                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]\n")
+
         else:
-            #print(f"\r{' '*132}", end="")
-            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets} " +
+            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
                     f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]", end="\n")
 
+        with open("/tmp/mt.out", "w") as file:
+            file.write(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
+                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]")
 
         last_fail_count = transmitter.failed_packets
 
 if __name__ == "__main__":
-    asyncio.run(main())
+
+    parser = argparse.ArgumentParser(description="Run main with location context.")
+    parser.add_argument("--location", choices=["home", "work"], default="home",
+                        help="Specify the location: 'home' or 'work'")
+    args = parser.parse_args()
+
+    asyncio.run(main(args.location))
