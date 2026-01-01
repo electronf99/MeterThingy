@@ -45,7 +45,7 @@ class Transmitter:
             print(f"Write failed: {e}")
             raise
 
-    async def transmit(self, data: dict): #, ack):
+    async def transmit(self, data: dict): 
         
         # Packet list handler
 
@@ -86,5 +86,5 @@ class Transmitter:
             self.failed_packets += 1
             await self.disconnect()
         
-        return duration
+        return duration, (self.ack_interval - self.ack_loop_count)
 
