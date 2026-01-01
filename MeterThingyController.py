@@ -14,10 +14,11 @@ from Collectors.LocalNetThread import LocalNetThread
 # Global variable to hold start_time
 # It will keep updating regardless of what happens
 
-program_start_time = time.time()
-start_time = datetime.now()
+#program_start_time = time.time()
 
-def get_run_time():
+
+# Get running time as a string
+def get_run_time(start_time):
     
     current_time = datetime.now()
     elapsed = current_time - start_time
@@ -27,6 +28,15 @@ def get_run_time():
     duration = f"{days} {hours:02}:{minutes:02}" 
     
     return duration
+
+# Build Debug Output Line From lots of stuff
+def line(duration, tx_time, failed_packets, sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time):
+    
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} TSACK:{ack_time} Dropped: {failed_packets}/{sent_packets} "
+    line += f"{metric_label}: {metric_value:3d} LOADAVG: {load_average:.2f} {m1_smoothed} "
+    line += f"[{'-' * int(metric_value / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]"
+
+    return line
 
 # function that takes the desired value and increments it
 # so that you can smooth out changes in value.
@@ -67,7 +77,7 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 # Main function. Async to handle threading bluetooth
 
-async def main(location):
+async def main(location, debug, start_time):
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
@@ -85,11 +95,8 @@ async def main(location):
         CollectorThread = ASUSWrtThread()
 
     CollectorThread.start()
-
-
-
  
-    global program_start_time
+    #global program_start_time
     
     data = {
         "LCD": {
@@ -116,7 +123,6 @@ async def main(location):
     tx_time = 0
 
     last_fail_count = -1
-    tx_count=0
 
     # Default Maximum Metric Value
     default_max_metric_value = 100
@@ -170,7 +176,7 @@ async def main(location):
         data["meter"]["m1"]["v"] = m1_smoothed
         
         # How long since we started running
-        duration = get_run_time()
+        duration = get_run_time(start_time)
 
         # Get failed packets in K
         failedK = "{:.1f}".format(transmitter.failed_packets/1000)
@@ -181,32 +187,36 @@ async def main(location):
         data["LCD"]["0"] = f"{metric_label}{metric_value:02} PT{int(tx_time*1000)} L{load_average:.2f}           "[:16]
         data["LCD"]["1"] = f"{duration} F:{failedK}     "[:16]
       
-        # Transmit data and return average packet time
-        tx_time = await transmitter.transmit(data)
-        tx_count += 1
+        # Transmit data and return average packet time and packets until ack
+        tx_time, ack_time  = await transmitter.transmit(data)
+        
+        debug_line = line(duration, tx_time, transmitter.failed_packets, transmitter.sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time)
+        
+        
+        # Print stuff
         if last_fail_count != transmitter.failed_packets:
-            now = datetime.now()
             print("--- failed ---")
-
             with open("/tmp/failed.out", "a") as file:
-                file.write(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
-                    f"{metric_label}: {metric_value:3d} LOADAVG: {load_average:.2f} {m1_smoothed}  [{'-' * int(metric_value / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]\n")
-
+                file.write(debug_line)
         else:
-            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
-                    f"{metric_label}: {metric_value:3d} LOADAVG: {load_average:.2f} {m1_smoothed}  [{'-' * int(metric_value / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]", end="\n")
+            if debug:
+                print("\r" + debug_line)
 
         with open("/tmp/mt.out", "w") as file:
-            file.write(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
-                    f"{metric_label}: {metric_value:3d} LOADAVG: {load_average:.2f} {m1_smoothed}  [{'-' * int(metric_value / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]")
+            file.write("\r" + debug_line)
 
         last_fail_count = transmitter.failed_packets
 
+
+## Main ##
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run main with location context.")
     parser.add_argument("--location", choices=["home", "work"], default="home",
                         help="Specify the location: 'home' or 'work'")
+    parser.add_argument("--debug", action='store_true',
+                        help="Turn on debug")
     args = parser.parse_args()
-
-    asyncio.run(main(args.location))
+    
+    start_time = datetime.now()
+    asyncio.run(main(args.location,args.debug, start_time))
