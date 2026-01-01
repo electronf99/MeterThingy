@@ -5,8 +5,6 @@ from datetime import datetime
 
 from Collectors.RouterInfo import RouterInfo
 
-import pprint
-
 class ASUSWrtThread(threading.Thread):
 
     def __init__(self):
