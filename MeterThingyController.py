@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import asyncio
-import time
 from datetime import datetime
 import math
 import os
@@ -11,10 +10,6 @@ from MeterThingy import Transmitter
 from Collectors.ASUSWrtThread import ASUSWrtThread
 from Collectors.LocalNetThread import LocalNetThread
 
-# Global variable to hold start_time
-# It will keep updating regardless of what happens
-
-#program_start_time = time.time()
 
 
 # Get running time as a string
@@ -30,9 +25,9 @@ def get_run_time(start_time):
     return duration
 
 # Build Debug Output Line From lots of stuff
-def line(duration, tx_time, failed_packets, sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time):
+def info_line(duration, tx_time, failed_packets, sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time):
     
-    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} TSACK:{ack_time} Dropped: {failed_packets}/{sent_packets} "
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} TTACK:{ack_time:2d} Dropped: {failed_packets}/{sent_packets} "
     line += f"{metric_label}: {metric_value:3d} LOADAVG: {load_average:.2f} {m1_smoothed} "
     line += f"[{'-' * int(metric_value / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]"
 
@@ -77,7 +72,7 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 # Main function. Async to handle threading bluetooth
 
-async def main(location, debug, start_time):
+async def main(location, debug, start_time, dry_run):
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
@@ -95,9 +90,7 @@ async def main(location, debug, start_time):
         CollectorThread = ASUSWrtThread()
 
     CollectorThread.start()
- 
-    #global program_start_time
-    
+     
     data = {
         "LCD": {
                 "0": "This is a test",
@@ -129,7 +122,6 @@ async def main(location, debug, start_time):
 
     while True:
 
-        
         # An explanation of all the needle jiggery pokery
         #
         # The needle should be moved so that:
@@ -146,9 +138,9 @@ async def main(location, debug, start_time):
         # IMPORTANT: The current Pico2 meter thingy is wired so that the output 
         #            driver sends 0v when the PWM duty cycle is set 32768. This is
         #            one way that the driver allows direction to be specified. The 
-        #            moving iron meter always moves in the same direction and is
+        #            moving iron meter always moves the same direction and is
         #            generally used as an AC meter. (I should probably set direction
-        #            with the driver dir pin)
+        #            with the driver dir pin but atm it works)
         #            
 
         # Collect Data from collecter thread
@@ -190,14 +182,13 @@ async def main(location, debug, start_time):
         # Transmit data and return average packet time and packets until ack
         tx_time, ack_time  = await transmitter.transmit(data)
         
-        debug_line = line(duration, tx_time, transmitter.failed_packets, transmitter.sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time)
-        
-        
+        debug_line = info_line(duration, tx_time, transmitter.failed_packets, transmitter.sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time)
+
         # Print stuff
         if last_fail_count != transmitter.failed_packets:
             print("--- failed ---")
             with open("/tmp/failed.out", "a") as file:
-                file.write(debug_line)
+                file.write(debug_line + "\n")
         else:
             if debug:
                 print("\r" + debug_line)
@@ -216,7 +207,10 @@ if __name__ == "__main__":
                         help="Specify the location: 'home' or 'work'")
     parser.add_argument("--debug", action='store_true',
                         help="Turn on debug")
+    parser.add_argument("--dry-run", action='store_true',
+                        help="Don't connect to remote")
+
     args = parser.parse_args()
     
     start_time = datetime.now()
-    asyncio.run(main(args.location,args.debug, start_time))
+    asyncio.run(main(args.location,args.debug, args.dry_run, start_time))
