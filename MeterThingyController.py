@@ -1,7 +1,6 @@
 #!/usr/bin/python3
 
 import asyncio
-import time
 from datetime import datetime
 import math
 import os
@@ -11,11 +10,28 @@ from MeterThingy import Transmitter
 from Collectors.ASUSWrtThread import ASUSWrtThread
 from Collectors.LocalNetThread import LocalNetThread
 
-# Global variable to hold start_time
-# It will keep updating regardless of what happens
 
-program_start_time = time.time()
-start_time = datetime.now()
+
+# Get running time as a string
+def get_run_time(start_time):
+    
+    current_time = datetime.now()
+    elapsed = current_time - start_time
+    days = elapsed.days
+    hours, remainder = divmod(elapsed.seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    duration = f"{days} {hours:02}:{minutes:02}" 
+    
+    return duration
+
+# Build Debug Output Line From lots of stuff
+def info_line(duration, tx_time, failed_packets, sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time):
+    
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} TTACK:{ack_time:2d} Dropped: {failed_packets}/{sent_packets} "
+    line += f"{metric_label}: {metric_value:3d} LOADAVG: {load_average:.2f} {m1_smoothed} "
+    line += f"[{'-' * int(metric_value / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]"
+
+    return line
 
 # function that takes the desired value and increments it
 # so that you can smooth out changes in value.
@@ -56,7 +72,7 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 # Main function. Async to handle threading bluetooth
 
-async def main(location):
+async def main(location, debug, start_time, dry_run):
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
@@ -74,14 +90,7 @@ async def main(location):
         CollectorThread = ASUSWrtThread()
 
     CollectorThread.start()
-
-    max_rx_speed = 100
-    max_load_avg_1 = 3
-    m1_smoothed = 32768
-    m2_smoothed = 1
- 
-    global program_start_time
-    
+     
     data = {
         "LCD": {
                 "0": "This is a test",
@@ -97,94 +106,111 @@ async def main(location):
             },
     }
 
-    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid)
+    # Create the bt transmitter object
+    # Requedst a bt ack every ack_interval transmit loops
+    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, ack_interval=20)
+
+    # Start smoothing at 32768 (which is needle 0) Read later comments.
+    m1_smoothed = 32768
+
     tx_time = 0
-    slide_factor = 0
+
     last_fail_count = -1
-    loop = 0
-    tx_count=0
+
+    # Default Maximum Metric Value
+    default_max_metric_value = 100
+
     while True:
 
-        router_info = CollectorThread.get_latest()
-        router_rx_speed = int(router_info['speed']['rx']) #* 3
-        if router_rx_speed > 75:
-            router_rx_speed = 75
+        # An explanation of all the needle jiggery pokery
+        #
+        # The needle should be moved so that:
+        #
+        #   1. We dont hit the hard stop at the top because protect needle
+        #   2. The moving iron part has inertia so stop it waving about
+        #      by moving it's value up and down gradually
+        #   3. Purely for looks, the needle should move down more slowly than up.
+        #   4. The meter scale is non-linear in a non-linear fashion. Move it
+        #      faster at the bottom in a kind of reverse exponential way.
+        #   5. Sometimes it looks better to have a maximum metric value so that  
+        #      the meter hangs around near the middle.
+        #
+        # IMPORTANT: The current Pico2 meter thingy is wired so that the output 
+        #            driver sends 0v when the PWM duty cycle is set 32768. This is
+        #            one way that the driver allows direction to be specified. The 
+        #            moving iron meter always moves the same direction and is
+        #            generally used as an AC meter. (I should probably set direction
+        #            with the driver dir pin but atm it works)
+        #            
+
+        # Collect Data from collecter thread
+        latest_data = CollectorThread.get_latest()
+        metric_label = latest_data['v1']['label']
+        metric_value = int(latest_data['v1']['value'])
+
+        # Apply Collecter thread class specified maximum metric value
+        max_metric_value = int(min(latest_data['v1']['max_value'], default_max_metric_value))
+        metric_value = min(metric_value,max_metric_value)
+
+        # Boost the needle at lower values
+        metric_value_exp = reverse_exponential(metric_value, full_scale = max_metric_value, curve_factor = 4.0)
+
+        # Needle 0 is duty 32768. The needle is 0 -> 100% at duty 32768 -> 65535
+        # Calculate the duty as the ratio of (metric value / max value) * 32768
+        needle_duty = (metric_value_exp/max_metric_value*32768)+32768
         
-        
-        load_average_1, load_5, load_15 = os.getloadavg()
-        if load_average_1 > 5:
-            load_average_1=5
+        # Final safewguard. Dont allow needle to swing all the way up to the stop
+        max_needle_duty = 60000
+        m1_duty = int(min(needle_duty, max_needle_duty))
 
-
-        router_rx_exp = reverse_exponential(router_rx_speed, full_scale = 75.0, curve_factor = 4.0)
-
-        m1_duty = int(min((router_rx_exp/max_rx_speed*32768)+32768, 60000))
+        # Avoid waving due to iron inertia. and return to 0 slowly
         m1_smoothed = chaser(m1_duty, m1_smoothed, increment=2000, decrement=1000)
         data["meter"]["m1"]["v"] = m1_smoothed
         
-        m2_duty = int(load_average_1/max_load_avg_1 * 60000)
-        m2_smoothed = chaser(m2_duty, m2_smoothed, increment=1000, decrement=500)
-        data["meter"]["m2"]["v"] = m2_smoothed + 1 #m2_duty
+        # How long since we started running
+        duration = get_run_time(start_time)
 
-
-        current_time = datetime.now()
-        elapsed = current_time - start_time
-
-        # Break down the timedelta
-        days = elapsed.days
-        hours, remainder = divmod(elapsed.seconds, 3600)
-        minutes, seconds = divmod(remainder, 60)
-
-
-        duration = f"{days} {hours:02}:{minutes:02}" #:{seconds:02}"
-        #duration = f"{days} {hours:02}:{minutes:02}"
-        
-        slide_factor += 1
+        # Get failed packets in K
         failedK = "{:.1f}".format(transmitter.failed_packets/1000)
 
-        data["LCD"]["0"] = f"R{router_rx_speed:02} PT{int(tx_time*1000)} L{load_average_1:.2f}           "[:16]
+        load_average=os.getloadavg()[0]
+
+        # Setup LCD Display Data
+        data["LCD"]["0"] = f"{metric_label}{metric_value:02} PT{int(tx_time*1000)} L{load_average:.2f}           "[:16]
         data["LCD"]["1"] = f"{duration} F:{failedK}     "[:16]
       
-        # Transmit data and return averrage packet time
+        # Transmit data and return average packet time and packets until ack
+        tx_time, ack_time  = await transmitter.transmit(data)
+        
+        debug_line = info_line(duration, tx_time, transmitter.failed_packets, transmitter.sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time)
 
-        # print(data)
-        loop += 1
-        if loop == 30:
-            ack = True
-            loop = 0
-        else:
-            ack = False
-        
-        # Trying to figure out why it keeps hanging.
-        #ack = False
-        
-        #ack=True
-        
-        tx_time = await transmitter.transmit(data, ack)
-        tx_count += 1
+        # Print stuff
         if last_fail_count != transmitter.failed_packets:
-            now = datetime.now()
             print("--- failed ---")
-
             with open("/tmp/failed.out", "a") as file:
-                file.write(f"{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
-                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]\n")
-
+                file.write(debug_line + "\n")
         else:
-            print(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
-                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]", end="\n")
+            if debug:
+                print("\r" + debug_line)
 
         with open("/tmp/mt.out", "w") as file:
-            file.write(f"\r{now.strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} Dropped: {transmitter.failed_packets}/{transmitter.sent_packets} " +
-                    f"RX: {router_rx_speed:3d} LOADAVG: {load_average_1:.2f} {m1_smoothed}  [{'-' * int(router_rx_speed / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]")
+            file.write("\r" + debug_line)
 
         last_fail_count = transmitter.failed_packets
 
+
+## Main ##
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run main with location context.")
     parser.add_argument("--location", choices=["home", "work"], default="home",
                         help="Specify the location: 'home' or 'work'")
-    args = parser.parse_args()
+    parser.add_argument("--debug", action='store_true',
+                        help="Turn on debug")
+    parser.add_argument("--dry-run", action='store_true',
+                        help="Don't connect to remote")
 
-    asyncio.run(main(args.location))
+    args = parser.parse_args()
+    
+    start_time = datetime.now()
+    asyncio.run(main(args.location,args.debug, args.dry_run, start_time))
