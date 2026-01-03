@@ -72,7 +72,7 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 # Main function. Async to handle threading bluetooth
 
-async def main(location, debug, start_time, dry_run):
+async def main(location, debug, dry_run, start_time):
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
@@ -108,7 +108,7 @@ async def main(location, debug, start_time, dry_run):
 
     # Create the bt transmitter object
     # Requedst a bt ack every ack_interval transmit loops
-    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, ack_interval=20)
+    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=20)
 
     # Start smoothing at 32768 (which is needle 0) Read later comments.
     m1_smoothed = 32768
