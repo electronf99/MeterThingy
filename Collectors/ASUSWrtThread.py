@@ -77,4 +77,13 @@ class ASUSWrtThread(threading.Thread):
             time.sleep(0.5)
 
     def get_latest(self):
-        return self.average_speed  
+
+        data = {
+            'v1': {
+                'label': 'RX', 
+                'value': self.average_speed["speed"]["rx"],
+                'max_value': 100
+            }
+        }
+
+        return data
