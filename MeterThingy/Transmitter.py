@@ -6,7 +6,7 @@ from time import sleep
 
 
 class Transmitter:
-    def __init__(self, address: str, char_uuid: str, ack_interval=30):
+    def __init__(self, address: str, char_uuid: str, dry_run=False, ack_interval=30):
         self.address = address
         self.char_uuid = char_uuid
         self.client = BleakClient(address)
@@ -15,6 +15,7 @@ class Transmitter:
         self.sent_packets = 0
         self.ack_interval = ack_interval
         self.ack_loop_count = 0
+        self.dry_run = dry_run
 
 
     async def connect(self):
@@ -62,29 +63,31 @@ class Transmitter:
         else:
             ack = False
 
+        if self.dry_run:
+            sleep(0.3)
+        else:
+            try:
 
-        try:
+                start_time = time.perf_counter()
+                count = 1
+                for packet in packets:
+                    count += 1
 
-            start_time = time.perf_counter()
-            count = 1
-            for packet in packets:
-                count += 1
-
-                                                    
-                if ack is True and count == len(packets):
-                    print("Requesting ack.. ", end="")
-                    await self.send_data(packet, True)
-                    print("ack received")
-                else:
-                    await self.send_data(packet, False)
-                
-            end_time = time.perf_counter()
-            duration = (end_time - start_time) / float(len(packets))
-            self.sent_packets += 1
-        except Exception as e:
-            print(f"Error: {e}, disconnect")
-            self.failed_packets += 1
-            await self.disconnect()
+                                                        
+                    if ack is True and count == len(packets):
+                        print("Requesting ack.. ", end="")
+                        await self.send_data(packet, True)
+                        print("ack received")
+                    else:
+                        await self.send_data(packet, False)
+                    
+                end_time = time.perf_counter()
+                duration = (end_time - start_time) / float(len(packets))
+                self.sent_packets += 1
+            except Exception as e:
+                print(f"Error: {e}, disconnect")
+                self.failed_packets += 1
+                await self.disconnect()
         
         return duration, (self.ack_interval - self.ack_loop_count)
 
