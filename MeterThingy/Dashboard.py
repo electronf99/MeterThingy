@@ -53,7 +53,7 @@ class Dashboard:
         data_table = Table()
         data_table.add_column("Metric", style="bold")
         data_table.add_column("Value", justify="right")
-        data_table.add_column("", justify="left",max_width=20)
+        data_table.add_column("", justify="left",max_width=40)
         for name, value, bar in self.state["metrics"]:
             data_table.add_row(name, value, bar)
 
