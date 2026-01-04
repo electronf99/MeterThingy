@@ -20,7 +20,7 @@ class ASUSWrtThread(threading.Thread):
 
         #self.router = RouterInfo("192.168.0.1", "admin", "electronf11")
         self.ri = RouterInfo("192.168.0.1", "admin", "electronf11")
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, daemon=True)
 
         
     def run(self):

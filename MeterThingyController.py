@@ -7,7 +7,7 @@ import os
 import sys
 import signal
 import argparse
-from time import sleep
+
 
 from MeterThingy import Transmitter
 from MeterThingy import Dashboard
@@ -194,27 +194,14 @@ async def main(location, debug, dry_run, display, start_time):
         status['failed_packets'] = transmitter.failed_packets
         status['sent_packets'] = transmitter.sent_packets
 
-        # Console Display
-        if display:
-            dashboard.update({
-                "status": "Running",
-                "rows": [
-                    ("Duration", "", status["duration"]),
-                    ("Packet Time", "[yellow]~ Warn[/yellow]", "00:12"),
-                    ("package", "[red]✗ Failed[/red]", "00:08"),
-                ],
-            }, status)
-
-            #dashboard.update(status)
-
-
         ## Debugging output.
         debug_line = info_line(status)
         if last_fail_count != transmitter.failed_packets:
-            print("--- failed ---")
+            status['status'] = "[red]failing"
             with open("/tmp/failed.out", "a") as file:
                 file.write(debug_line + "\n")
         else:
+            status['status'] = "[green]OK"
             if debug:
                 print("\r" + debug_line)
 
@@ -223,6 +210,9 @@ async def main(location, debug, dry_run, display, start_time):
 
         last_fail_count = transmitter.failed_packets
 
+        # Console Display
+        if display:
+            dashboard.update(status)
 
 
 def handle_sigint(signum, frame):
@@ -236,7 +226,7 @@ def handle_sigint(signum, frame):
     os.system('tput rmcup')
     os.system('tput cnorm')
     # progress.stop() / live.stop()
-    print("\x1b[?25h", end="", flush=True) 
+    print("\x1b[?25h", end="", flush=True)
     raise KeyboardInterrupt
 
 ## Main ##
@@ -255,6 +245,12 @@ if __name__ == "__main__":
     args = parser.parse_args()
     start_time = datetime.now()
 
-    signal.signal(signal.SIGINT, handle_sigint)
 
+    
+    signal.signal(signal.SIGINT, handle_sigint)
+    
     asyncio.run(main(args.location,args.debug, args.dry_run, args.display, start_time))
+
+    
+
+
