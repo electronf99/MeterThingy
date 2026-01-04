@@ -4,9 +4,13 @@ import asyncio
 from datetime import datetime
 import math
 import os
+import sys
+import signal
 import argparse
+from time import sleep
 
 from MeterThingy import Transmitter
+from MeterThingy import Dashboard
 from Collectors.ASUSWrtThread import ASUSWrtThread
 from Collectors.LocalNetThread import LocalNetThread
 
@@ -20,16 +24,16 @@ def get_run_time(start_time):
     days = elapsed.days
     hours, remainder = divmod(elapsed.seconds, 3600)
     minutes, seconds = divmod(remainder, 60)
-    duration = f"{days} {hours:02}:{minutes:02}" 
+    duration = f"{days} {hours:02}:{minutes:02}:{seconds:02}" 
     
     return duration
 
 # Build Debug Output Line From lots of stuff
-def info_line(duration, tx_time, failed_packets, sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time):
+def info_line(status):
     
-    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {duration} PT: {tx_time:.3f} TTACK:{ack_time:2d} Dropped: {failed_packets}/{sent_packets} "
-    line += f"{metric_label}: {metric_value:3d} LOADAVG: {load_average:.2f} {m1_smoothed} "
-    line += f"[{'-' * int(metric_value / 4 ):<12}] [{'*' * int((m1_smoothed-32768) / 3000 ):<12}]"
+    line = f"{datetime.now().strftime('%Y-%m-%d %H:%M:%S')} UPTIME: {status['duration']} PT: {status['tx_time']:.3f} TTACK:{status['ack_time']:2d} Dropped: {status['failed_packets']}/{status['sent_packets']} "
+    line += f"{status['metric_label']}: {status['metric_value']:3d} LOADAVG: {status['load_average']:.2f} {status['m1_smoothed']} "
+    line += f"[{'-' * int(status['metric_value'] / 4 ):<12}] [{'*' * int((status['m1_smoothed']-32768) / 3000 ):<12}]"
 
     return line
 
@@ -72,7 +76,10 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 # Main function. Async to handle threading bluetooth
 
-async def main(location, debug, dry_run, start_time):
+async def main(location, debug, dry_run, display, start_time):
+
+    dashboard = Dashboard.Dashboard(refresh_per_second=1)
+    dashboard.start()
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
@@ -105,15 +112,17 @@ async def main(location, debug, dry_run, start_time):
                 },
             },
     }
+    
+    status={}
 
     # Create the bt transmitter object
     # Requedst a bt ack every ack_interval transmit loops
     transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=20)
 
     # Start smoothing at 32768 (which is needle 0) Read later comments.
-    m1_smoothed = 32768
+    status['m1_smoothed'] = 32768
 
-    tx_time = 0
+    status['tx_time'] = 0
 
     last_fail_count = -1
 
@@ -145,15 +154,15 @@ async def main(location, debug, dry_run, start_time):
 
         # Collect Data from collecter thread
         latest_data = CollectorThread.get_latest()
-        metric_label = latest_data['v1']['label']
-        metric_value = int(latest_data['v1']['value'])
+        status['metric_label'] = latest_data['v1']['label']
+        status['metric_value'] = int(latest_data['v1']['value'])
 
         # Apply Collecter thread class specified maximum metric value
         max_metric_value = int(min(latest_data['v1']['max_value'], default_max_metric_value))
-        metric_value = min(metric_value,max_metric_value)
+        status['metric_value'] = min(status['metric_value'],max_metric_value)
 
         # Boost the needle at lower values
-        metric_value_exp = reverse_exponential(metric_value, full_scale = max_metric_value, curve_factor = 4.0)
+        metric_value_exp = reverse_exponential(status['metric_value'], full_scale = max_metric_value, curve_factor = 4.0)
 
         # Needle 0 is duty 32768. The needle is 0 -> 100% at duty 32768 -> 65535
         # Calculate the duty as the ratio of (metric value / max value) * 32768
@@ -164,27 +173,43 @@ async def main(location, debug, dry_run, start_time):
         m1_duty = int(min(needle_duty, max_needle_duty))
 
         # Avoid waving due to iron inertia. and return to 0 slowly
-        m1_smoothed = chaser(m1_duty, m1_smoothed, increment=2000, decrement=1000)
-        data["meter"]["m1"]["v"] = m1_smoothed
+        status['m1_smoothed'] = chaser(m1_duty, status['m1_smoothed'], increment=2000, decrement=1000)
+        data["meter"]["m1"]["v"] = status['m1_smoothed']
         
         # How long since we started running
-        duration = get_run_time(start_time)
+        status['duration'] = get_run_time(start_time)
 
         # Get failed packets in K
         failedK = "{:.1f}".format(transmitter.failed_packets/1000)
 
-        load_average=os.getloadavg()[0]
+        status['load_average'] = os.getloadavg()[0]
 
         # Setup LCD Display Data
-        data["LCD"]["0"] = f"{metric_label}{metric_value:02} PT{int(tx_time*1000)} L{load_average:.2f}           "[:16]
-        data["LCD"]["1"] = f"{duration} F:{failedK}     "[:16]
+        data["LCD"]["0"] = f"{status['metric_label']}{status['metric_value']:02} PT{int(status['tx_time']*1000)} L{status['load_average']:.2f}           "[:16]
+        data["LCD"]["1"] = f"{status['duration'][:-3]} F:{failedK}     "[:16]
       
         # Transmit data and return average packet time and packets until ack
-        tx_time, ack_time  = await transmitter.transmit(data)
-        
-        debug_line = info_line(duration, tx_time, transmitter.failed_packets, transmitter.sent_packets, metric_label, metric_value, load_average, m1_smoothed, ack_time)
+        status['tx_time'], status['ack_time']  = await transmitter.transmit(data)
 
-        # Print stuff
+        status['failed_packets'] = transmitter.failed_packets
+        status['sent_packets'] = transmitter.sent_packets
+
+        # Console Display
+        if display:
+            dashboard.update({
+                "status": "Running",
+                "rows": [
+                    ("Duration", "", status["duration"]),
+                    ("Packet Time", "[yellow]~ Warn[/yellow]", "00:12"),
+                    ("package", "[red]✗ Failed[/red]", "00:08"),
+                ],
+            }, status)
+
+            #dashboard.update(status)
+
+
+        ## Debugging output.
+        debug_line = info_line(status)
         if last_fail_count != transmitter.failed_packets:
             print("--- failed ---")
             with open("/tmp/failed.out", "a") as file:
@@ -199,6 +224,21 @@ async def main(location, debug, dry_run, start_time):
         last_fail_count = transmitter.failed_packets
 
 
+
+def handle_sigint(signum, frame):
+    # Disable mouse reporting
+    sys.stdout.write("\x1b[?1000l\x1b[?1002l\x1b[?1003l\x1b[?1006l")
+    # Exit alternate screen if active
+    sys.stdout.write("\x1b[?1049l")
+    # Show cursor
+    sys.stdout.write("\x1b[?25h")
+    sys.stdout.flush()
+    os.system('tput rmcup')
+    os.system('tput cnorm')
+    # progress.stop() / live.stop()
+    print("\x1b[?25h", end="", flush=True) 
+    raise KeyboardInterrupt
+
 ## Main ##
 if __name__ == "__main__":
 
@@ -209,8 +249,12 @@ if __name__ == "__main__":
                         help="Turn on debug")
     parser.add_argument("--dry-run", action='store_true',
                         help="Don't connect to remote")
+    parser.add_argument("--display", action='store_true',
+                        help="Turn on console display")
 
     args = parser.parse_args()
-    
     start_time = datetime.now()
-    asyncio.run(main(args.location,args.debug, args.dry_run, start_time))
+
+    signal.signal(signal.SIGINT, handle_sigint)
+
+    asyncio.run(main(args.location,args.debug, args.dry_run, args.display, start_time))
