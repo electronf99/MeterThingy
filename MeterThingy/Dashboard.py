@@ -39,7 +39,7 @@ class Dashboard:
         
         data["metrics"] = [
             (status['metric_label'], f"{status['metric_value']}", Bar(20, 0, status['metric_value'] / 4, color="deep_sky_blue4")),
-            (f"Meter  {status['metric_label']}", f"{status['m1_smoothed']-32768}", Bar(20,0,int((status['m1_smoothed']-32768) / 1000 ),color="sky_blue3")),
+            (f"Meter  {status['metric_label']}", f"{status['m1_smoothed']-32768}", Bar(20,0,int((status['m1_smoothed']-32768) / 3000 ),color="sky_blue3")),
             ("Load Average", f"{status['load_average']:.2f}", f"{'-' * math.ceil(status['load_average']):<20}"),
         ]
         
@@ -48,17 +48,17 @@ class Dashboard:
             self.live.update(self._render(),refresh=True)  # updates once; no loop
 
     def _render(self):
-        header = Panel(f"[bold cyan]{self.state['title']}[/bold cyan]", border_style="cyan")
+        header = Panel(f"[bold green]{self.state['title']}[green]", border_style="green")
         
-        data_table = Table()
-        data_table.add_column("Metric", style="bold")
-        data_table.add_column("Value", justify="right")
+        data_table = Table(show_header=False)
+        data_table.add_column("Metric") #, style="bold")
+        data_table.add_column("Value", justify="right", width=10)
         data_table.add_column("", justify="left",max_width=40)
         for name, value, bar in self.state["metrics"]:
             data_table.add_row(name, value, bar)
 
-        stats_table = Table()
-        stats_table.add_column("Name", style="bold")
+        stats_table = Table(show_header=False)
+        stats_table.add_column("Name") #, style="bold")
         stats_table.add_column("Value", justify="right")
         for name, value in self.state["stats"]:
             stats_table.add_row(name, value)
