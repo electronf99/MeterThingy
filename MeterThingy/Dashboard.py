@@ -48,7 +48,7 @@ class Dashboard:
             self.live.update(self._render(),refresh=True)  # updates once; no loop
 
     def _render(self):
-        header = Panel(f"[bold green]{self.state['title']}[green]", border_style="green")
+        header = Panel(f"[bold blue]{self.state['title']}[blue]", border_style="blue")
         
         data_table = Table(show_header=False)
         data_table.add_column("Metric") #, style="bold")
@@ -63,7 +63,7 @@ class Dashboard:
         for name, value in self.state["stats"]:
             stats_table.add_row(name, value)
         
-        footer = Panel(f"[bold green]Status:[/bold green] {self.state['status']}", border_style="green")
+        footer = Panel(f"[bold blue]Status:[/bold blue] {self.state['status']}", border_style="blue")
         return Group(header, data_table, stats_table, footer)  # <-- return Group, not list
 
 
