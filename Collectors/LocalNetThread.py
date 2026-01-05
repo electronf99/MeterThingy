@@ -16,10 +16,7 @@ class LocalNetThread(threading.Thread):
                 }
         self.iface = self.get_default_interface_ip_route()
 
-        # #self.router = RouterInfo("192.168.0.1", "admin", "redacted")
-        # self.ri = RouterInfo("192.168.0.1", "admin", "redacted")
-
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, daemon=True)
 
     def get_default_interface_ip_route(self) -> str | None:
         """
