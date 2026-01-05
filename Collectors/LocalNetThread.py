@@ -16,10 +16,7 @@ class LocalNetThread(threading.Thread):
                 }
         self.iface = self.get_default_interface_ip_route()
 
-        # #self.router = RouterInfo("192.168.0.1", "admin", "redacted")
-        # self.ri = RouterInfo("192.168.0.1", "admin", "redacted")
-
-        threading.Thread.__init__(self)
+        threading.Thread.__init__(self, daemon=True)
 
     def get_default_interface_ip_route(self) -> str | None:
         """
@@ -63,7 +60,7 @@ class LocalNetThread(threading.Thread):
             time.sleep(interval)
             rx2 = self.get_rx_bytes(self.iface)
 
-            rx_bps = min(50, (rx2 - rx1) / interval / 10000)
+            rx_bps = min(100, (rx2 - rx1) / interval / 10000)
             #print(f"{rx_bps:.0f} {'-' * int(rx_bps)}")
 
 
@@ -73,4 +70,14 @@ class LocalNetThread(threading.Thread):
             time.sleep(0.1)
 
     def get_latest(self):
-        return self.average_speed  
+
+        data = {
+            'v1': {
+                'label': 'RX', 
+                'value': self.average_speed["speed"]["rx"],
+                'max_value': 100
+            }
+        }
+
+        return data
+
