@@ -1,5 +1,6 @@
 import json
 import threading
+from pathlib import Path
 import time
 from datetime import datetime
 
@@ -18,8 +19,11 @@ class ASUSWrtThread(threading.Thread):
                 'average': { 'rx': 0, 'tx': 0}
                 }
 
-        #self.router = RouterInfo("192.168.0.1", "admin", "redacted")
-        self.ri = RouterInfo("192.168.0.1", "admin", "redacted")
+        self.password=""
+        with open(f"{Path.home()}/.asuslogin",'r') as file:
+            self.password = file.readline().strip()
+            print(self.password)
+
         threading.Thread.__init__(self, daemon=True)
 
         
@@ -35,7 +39,7 @@ class ASUSWrtThread(threading.Thread):
 
         while(1==1):
             try:
-                self.ri = RouterInfo("192.168.0.1", "admin", "redacted")           
+                self.ri = RouterInfo("192.168.0.1", "admin", self.password)           
                 self.traffic = json.loads(self.ri.get_traffic())
                 
                 if bytes_rx_last == 0:

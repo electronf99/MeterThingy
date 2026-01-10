@@ -95,9 +95,6 @@ async def main(location, debug, dry_run, display, start_time):
     if location == "work":
         CollectorThread = LocalNetThread()
     else:
-        with open('~/.asuslogin','r') as file:
-            line = file.readline().strip()
-            print(line)
         CollectorThread = ASUSWrtThread()
 
     CollectorThread.start()
