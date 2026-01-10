@@ -78,8 +78,9 @@ def reverse_exponential(input_value: float, full_scale: float = 15.0, curve_fact
 
 async def main(location, debug, dry_run, display, start_time):
 
-    dashboard = Dashboard.Dashboard(refresh_per_second=1)
-    dashboard.start()
+    if display:
+        dashboard = Dashboard.Dashboard(refresh_per_second=1)
+        dashboard.start()
 
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
