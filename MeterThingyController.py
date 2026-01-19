@@ -85,7 +85,8 @@ async def main(location, debug, dry_run, display, start_time):
     # Using Mac. Should figure out how to find mac based on name.
     ble_mac = {
         "home" : "2C:CF:67:F3:AF:3D",
-        "work" : "2C:CF:67:F3:AF:3D"
+        "work" : "2C:CF:67:F3:AF:3D",
+        "test" : "2C:CF:67:E4:D5:10"
     }
 
     ble_address = ble_mac[location]
@@ -199,14 +200,14 @@ async def main(location, debug, dry_run, display, start_time):
         debug_line = info_line(status)
         if last_fail_count != transmitter.failed_packets:
             status['status'] = "[red]failing"
-            with open("/tmp/failed.out", "a") as file:
+            with open("/tmp/-testfailed.out", "a") as file:
                 file.write(debug_line + "\n")
         else:
             status['status'] = "[green]OK"
             if debug:
                 print("\r" + debug_line)
 
-        with open("/tmp/mt.out", "w") as file:
+        with open("/tmp/test-mt.out", "w") as file:
             file.write("\r" + debug_line)
 
         last_fail_count = transmitter.failed_packets
@@ -234,7 +235,7 @@ def handle_sigint(signum, frame):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run main with location context.")
-    parser.add_argument("--location", choices=["home", "work"], default="home",
+    parser.add_argument("--location", choices=["home", "work",'test'], default="home",
                         help="Specify the location: 'home' or 'work'")
     parser.add_argument("--debug", action='store_true',
                         help="Turn on debug")

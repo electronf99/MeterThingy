@@ -22,7 +22,6 @@ class ASUSWrtThread(threading.Thread):
         self.password=""
         with open(f"{Path.home()}/.asuslogin",'r') as file:
             self.password = file.readline().strip()
-            print(self.password)
 
         threading.Thread.__init__(self, daemon=True)
 
