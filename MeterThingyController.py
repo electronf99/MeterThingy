@@ -86,7 +86,8 @@ async def main(location, debug, dry_run, display, start_time):
     ble_mac = {
         "home" : "2C:CF:67:F3:AF:3D",
         "work" : "2C:CF:67:F3:AF:3D",
-        "test" : "2C:CF:67:E4:D5:10"
+        "test" : "2C:CF:67:E4:D5:10",
+        "esp32-test" : "58:8C:81:ED:B3:52"
     }
 
     ble_address = ble_mac[location]
@@ -235,7 +236,7 @@ def handle_sigint(signum, frame):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run main with location context.")
-    parser.add_argument("--location", choices=["home", "work",'test'], default="home",
+    parser.add_argument("--location", choices=["home", "work",'test',  'esp32-test'], default="home",
                         help="Specify the location: 'home' or 'work'")
     parser.add_argument("--debug", action='store_true',
                         help="Turn on debug")
