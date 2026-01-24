@@ -105,7 +105,6 @@ async def main(location, debug, dry_run, display, start_time):
         "LCD": {
                 "0": "This is a test",
                 "1": "ddmmyy",
-                "2": 0
             },
         "meter": {
             "m1": {
@@ -115,17 +114,16 @@ async def main(location, debug, dry_run, display, start_time):
                 "v": 10000,
                 },
             },
-        # "meta" : {
-        #     "pc" : 0,
-        #     'fc' : 0,
-        # }
+        "meta" : {
+            "pc" : 0,
+        }
     }
     
     status={}
 
     # Create the bt transmitter object
     # Requedst a bt ack every ack_interval transmit loops
-    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=20)
+    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=1)
 
     # Start smoothing at 32768 (which is needle 0) Read later comments.
     status['m1_smoothed'] = 32768
@@ -195,10 +193,9 @@ async def main(location, debug, dry_run, display, start_time):
         # Setup LCD Display Data
         data["LCD"]["0"] = f"{status['metric_label']}{status['metric_value']:02} PT{int(status['tx_time']*1000)} L{status['load_average']:.2f}           "[:16]
         data["LCD"]["1"] = f"{status['duration'][:-3]} F:{failedK}     "[:16]
-        data["LCD"]["2"] = f"{transmitter.sent_packets}"[:16]
-      
-        # data["meta"]["pc"] = transmitter.sent_packets
-        # data["meta"]["fc"] = transmitter.failed_packets
+
+        data["meta"]["pc"] = transmitter.sent_packets
+        data["meta"]["fc"] = transmitter.failed_packets
 
         # Transmit data and return average packet time and packets until ack
         status['tx_time'], status['ack_time']  = await transmitter.transmit(data)
@@ -245,7 +242,7 @@ def handle_sigint(signum, frame):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run main with location context.")
-    parser.add_argument("--location", choices=["home", "work",'test',"esp32-test"], default="home",
+    parser.add_argument("--location", choices=["home", "work",'test',  'esp32-test'], default="home",
                         help="Specify the location: 'home' or 'work'")
     parser.add_argument("--debug", action='store_true',
                         help="Turn on debug")
