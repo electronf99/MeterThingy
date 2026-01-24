@@ -4,7 +4,7 @@ import json
 # Handle Json STring encoded to fit in 20 byte BLE packets
 # Includes headers + payload
 #
-class ble20Packets:
+class sble20Packets:
     def __init__(self, message_id=1, max_payload=17):
         self.message_id = message_id
         self.max_payload = max_payload
@@ -13,7 +13,6 @@ class ble20Packets:
     # including message id and number of packets
     # 
     def build_packets(self, data):
-
         encoded = data
 
         chunk_size = self.max_payload
