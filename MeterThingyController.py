@@ -125,7 +125,7 @@ async def main(location, debug, dry_run, display, start_time):
 
     # Create the bt transmitter object
     # Requedst a bt ack every ack_interval transmit loops
-    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=20)
+    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=0)
 
     # Start smoothing at 32768 (which is needle 0) Read later comments.
     status['m1_smoothed'] = 32768

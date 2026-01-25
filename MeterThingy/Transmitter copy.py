@@ -3,7 +3,6 @@ import msgpack
 from MeterThingy.ble20Packets import ble20Packets
 import time
 from time import sleep
-import asyncio
 
 
 class Transmitter:
@@ -40,11 +39,8 @@ class Transmitter:
             print("Not Connected")
             await self.connect()
         try:
-            ############
-            #ack=False
-            ############
-            await self.client.write_gatt_char(self.char_uuid, data, ack)
-            await asyncio.sleep(0.07)
+            await self.client.write_gatt_char(self.char_uuid, data, True)
+            time.sleep(0.01)
             #print(f"Sent: {data}")
         except BleakError as e:
             print(f"Write failed: {e}")
@@ -59,8 +55,7 @@ class Transmitter:
         duration = 0
 
         # Should we ack this time?
-        if self.ack_interval > 0:
-            self.ack_loop_count += 1
+        self.ack_loop_count += 1
         
         if self.ack_interval > 0 and self.ack_loop_count == self.ack_interval:
             ack = True
@@ -69,7 +64,7 @@ class Transmitter:
             ack = False
 
         if self.dry_run:
-            sleep(0.1)
+            sleep(0.3)
         else:
             try:
 
@@ -77,8 +72,9 @@ class Transmitter:
                 count = 1
                 for packet in packets:
                     count += 1
-                             
-                    if ack is True: #and count == len(packets):
+
+                                                        
+                    if ack is True and count == len(packets):
                         print("Requesting ack.. ", end="")
                         await self.send_data(packet, True)
                         print("ack received")
