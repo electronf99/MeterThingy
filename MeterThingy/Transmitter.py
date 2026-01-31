@@ -44,7 +44,7 @@ class Transmitter:
             #ack=False
             ############
             await self.client.write_gatt_char(self.char_uuid, data, ack)
-            await asyncio.sleep(0.07)
+            await asyncio.sleep(0.04)
             #print(f"Sent: {data}")
         except BleakError as e:
             print(f"Write failed: {e}")
