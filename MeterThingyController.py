@@ -53,7 +53,8 @@ def chaser(desired, current_value, increment=100, decrement=100):
             current_value -= decrement
             if current_value < decrement:
                 current_value = 0
-        
+        if current_value < 0:
+            current_value = 0
     return current_value
 
 
@@ -132,6 +133,7 @@ async def main(location, debug, dry_run, display, start_time):
     status['m1_smoothed'] = 32768
 
     status['tx_time'] = 0
+    status['max_packet_size'] = 0
 
     last_fail_count = -1
 
@@ -182,27 +184,28 @@ async def main(location, debug, dry_run, display, start_time):
         m1_duty = int(min(needle_duty, max_needle_duty))
 
         # Avoid waving due to iron inertia. and return to 0 slowly
-        status['m1_smoothed'] = chaser(m1_duty, status['m1_smoothed'], increment=2000, decrement=1000)
+        status['m1_smoothed'] = chaser(m1_duty, status['m1_smoothed'], increment=600, decrement=200)
         data["meter"]["m1"]["v"] = status['m1_smoothed']
         
         # How long since we started running
         status['duration'] = get_run_time(start_time)
 
-        # Get failed packets in K
-        failedK = "{:.1f}".format(transmitter.failed_packets/1000)
-
         status['load_average'] = os.getloadavg()[0]
 
         # Setup LCD Display Data
-        data["LCD"]["0"] = f"{status['metric_label']}{status['metric_value']:02} PT{int(status['tx_time']*1000)} L{status['load_average']:.2f}           "[:16]
-        data["LCD"]["1"] = f"{status['duration'][:-3]} F:{failedK}     "[:16]
-        data["LCD"]["2"] = f"{transmitter.sent_packets}"[:16]
+        data["LCD"]["0"] = f"{status['metric_label']}: {latest_data['v1']['value']:6.2f} V{status['metric_value']:03} L{status['load_average']:.2f}           "[:24]
+        data["LCD"]["1"] = f"{status['duration']} T{status['tx_time']:3.2f} F{transmitter.failed_packets}"
+        data["LCD"]["2"] = f"Sent: {transmitter.sent_packets}"
       
         # data["meta"]["pc"] = transmitter.sent_packets
         # data["meta"]["fc"] = transmitter.failed_packets
 
         # Transmit data and return average packet time and packets until ack
-        status['tx_time'], status['ack_time']  = await transmitter.transmit(data)
+        status['tx_time'], status['ack_time'], largest_packet  = await transmitter.transmit(data)
+
+
+        status['raw_data_size'] = len(str(data))
+        status['max_packet_size'] = max(status['max_packet_size'],largest_packet)
 
         status['failed_packets'] = transmitter.failed_packets
         status['sent_packets'] = transmitter.sent_packets

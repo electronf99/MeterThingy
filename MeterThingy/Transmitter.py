@@ -57,6 +57,7 @@ class Transmitter:
         mpack = msgpack.packb(data)
         packets = self.packer.build_packets(mpack)
         duration = 0
+        largest_packet  = 0
 
         # Should we ack this time?
         if self.ack_interval > 0:
@@ -77,13 +78,15 @@ class Transmitter:
                 count = 1
                 for packet in packets:
                     count += 1
-                             
+                                                 
                     if ack is True: #and count == len(packets):
                         print("Requesting ack.. ", end="")
                         await self.send_data(packet, True)
                         print("ack received")
                     else:
                         await self.send_data(packet, False)
+
+                largest_packet = max(largest_packet, len(packet) )
                     
                 end_time = time.perf_counter()
                 duration = (end_time - start_time) / float(len(packets))
@@ -93,5 +96,5 @@ class Transmitter:
                 self.failed_packets += 1
                 await self.disconnect()
         
-        return duration, (self.ack_interval - self.ack_loop_count)
+        return duration, (self.ack_interval - self.ack_loop_count), largest_packet
 
