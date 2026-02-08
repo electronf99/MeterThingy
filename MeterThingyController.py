@@ -7,7 +7,7 @@ import os
 import sys
 import signal
 import argparse
-
+import psutil
 
 from MeterThingy import Transmitter
 from MeterThingy import Dashboard
@@ -107,7 +107,7 @@ async def main(location, debug, dry_run, display, start_time):
         "LCD": {
                 "0": "This is a test",
                 "1": "ddmmyy",
-                "2": 0
+                "2": 0,
             },
         "meter": {
             "m1": {
@@ -117,17 +117,16 @@ async def main(location, debug, dry_run, display, start_time):
                 "v": 10000,
                 },
             },
-        # "meta" : {
-        #     "pc" : 0,
-        #     'fc' : 0,
-        # }
+        "meta": {
+            "cpu": 0,
+            }
     }
-    
+
     status={}
 
     # Create the bt transmitter object
     # Requedst a bt ack every ack_interval transmit loops
-    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=0)
+    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=0, sleep_interval=0.03)
 
     # Start smoothing at 32768 (which is needle 0) Read later comments.
     status['m1_smoothed'] = 32768
@@ -136,6 +135,8 @@ async def main(location, debug, dry_run, display, start_time):
     status['max_packet_size'] = 0
 
     last_fail_count = -1
+    loop = 0
+    total_cpu = 0
 
     # Default Maximum Metric Value
     default_max_metric_value = 100
@@ -173,7 +174,7 @@ async def main(location, debug, dry_run, display, start_time):
         status['metric_value'] = min(status['metric_value'],max_metric_value)
 
         # Boost the needle at lower values
-        metric_value_exp = reverse_exponential(status['metric_value'], full_scale = max_metric_value, curve_factor = 4.0)
+        metric_value_exp = reverse_exponential(status['metric_value'], full_scale = max_metric_value, curve_factor = 5.0)
 
         # Needle 0 is duty 32768. The needle is 0 -> 100% at duty 32768 -> 65535
         # Calculate the duty as the ratio of (metric value / max value) * 32768
@@ -191,14 +192,21 @@ async def main(location, debug, dry_run, display, start_time):
         status['duration'] = get_run_time(start_time)
 
         status['load_average'] = os.getloadavg()[0]
-
+        
+        loop += 1
+        total_cpu += psutil.cpu_percent()
+        if loop == 100:
+            cpu = total_cpu/100
+            data["meta"]["cpu"] = (f"{cpu:3.0f}%")
+            loop = 0
+            total_cpu = 0
+        
+        
         # Setup LCD Display Data
-        data["LCD"]["0"] = f"{status['metric_label']}: {latest_data['v1']['value']:6.2f} V{status['metric_value']:03} L{status['load_average']:.2f}           "[:24]
+        data["LCD"]["0"] = f"{status['metric_label']}: {latest_data['v1']['value']:6.2f} L{status['load_average']:.2f}           "[:24]
         data["LCD"]["1"] = f"{status['duration']} T{status['tx_time']:3.2f} F{transmitter.failed_packets}"
-        data["LCD"]["2"] = f"Sent: {transmitter.sent_packets}"
-      
-        # data["meta"]["pc"] = transmitter.sent_packets
-        # data["meta"]["fc"] = transmitter.failed_packets
+        data["LCD"]["2"] = f"BTX: {transmitter.sent_packets:<7} V{status['metric_value']:03} "
+
 
         # Transmit data and return average packet time and packets until ack
         status['tx_time'], status['ack_time'], largest_packet  = await transmitter.transmit(data)

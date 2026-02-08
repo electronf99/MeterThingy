@@ -5,7 +5,7 @@ import json
 # Includes headers + payload
 #
 class ble20Packets:
-    def __init__(self, message_id=1, max_payload=17):
+    def __init__(self, message_id=1, max_payload=190):
         self.message_id = message_id
         self.max_payload = max_payload
 

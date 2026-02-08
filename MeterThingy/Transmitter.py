@@ -7,14 +7,15 @@ import asyncio
 
 
 class Transmitter:
-    def __init__(self, address: str, char_uuid: str, dry_run=False, ack_interval=30):
+    def __init__(self, address: str, char_uuid: str, dry_run=False, ack_interval=30, sleep_interval=0.04):
         self.address = address
         self.char_uuid = char_uuid
         self.client = BleakClient(address)
-        self.packer = ble20Packets(message_id=1, max_payload=87)
+        self.packer = ble20Packets(message_id=1, max_payload=190)
         self.failed_packets = 0
         self.sent_packets = 0
         self.ack_interval = ack_interval
+        self.sleep_interval = sleep_interval
         self.ack_loop_count = 0
         self.dry_run = dry_run
 
@@ -44,7 +45,7 @@ class Transmitter:
             #ack=False
             ############
             await self.client.write_gatt_char(self.char_uuid, data, ack)
-            await asyncio.sleep(0.04)
+            await asyncio.sleep(self.sleep_interval)
             #print(f"Sent: {data}")
         except BleakError as e:
             print(f"Write failed: {e}")
@@ -53,9 +54,9 @@ class Transmitter:
     async def transmit(self, data: dict): 
         
         # Packet list handler
-
         mpack = msgpack.packb(data)
         packets = self.packer.build_packets(mpack)
+        print(len(packets))
         duration = 0
         largest_packet  = 0
 

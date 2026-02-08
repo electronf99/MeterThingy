@@ -83,7 +83,7 @@ class ASUSWrtThread(threading.Thread):
 
         data = {
             'v1': {
-                'label': 'RX', 
+                'label': 'Mbps', 
                 'value': self.average_speed["speed"]["rx"],
                 'max_value': 100
             }
