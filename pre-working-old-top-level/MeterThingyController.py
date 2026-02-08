@@ -53,8 +53,7 @@ def chaser(desired, current_value, increment=100, decrement=100):
             current_value -= decrement
             if current_value < decrement:
                 current_value = 0
-        if current_value < 0:
-            current_value = 0
+        
     return current_value
 
 
@@ -88,8 +87,7 @@ async def main(location, debug, dry_run, display, start_time):
         "home" : "2C:CF:67:F3:AF:3D",
         "work" : "2C:CF:67:F3:AF:3D",
         "test" : "2C:CF:67:E4:D5:10",
-        "esp32-test" : "58:8C:81:ED:B3:52",
-        "esp32-main" : "D0:CF:13:41:52:92"
+        "esp32-test" : "58:8C:81:ED:B3:52"
     }
 
     ble_address = ble_mac[location]
@@ -107,7 +105,6 @@ async def main(location, debug, dry_run, display, start_time):
         "LCD": {
                 "0": "This is a test",
                 "1": "ddmmyy",
-                "2": 0
             },
         "meter": {
             "m1": {
@@ -117,23 +114,21 @@ async def main(location, debug, dry_run, display, start_time):
                 "v": 10000,
                 },
             },
-        # "meta" : {
-        #     "pc" : 0,
-        #     'fc' : 0,
-        # }
+        "meta" : {
+            "pc" : 0,
+        }
     }
     
     status={}
 
     # Create the bt transmitter object
     # Requedst a bt ack every ack_interval transmit loops
-    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=0)
+    transmitter =  Transmitter.Transmitter(ble_address, characteristic_uuid, dry_run, ack_interval=1)
 
     # Start smoothing at 32768 (which is needle 0) Read later comments.
     status['m1_smoothed'] = 32768
 
     status['tx_time'] = 0
-    status['max_packet_size'] = 0
 
     last_fail_count = -1
 
@@ -184,28 +179,26 @@ async def main(location, debug, dry_run, display, start_time):
         m1_duty = int(min(needle_duty, max_needle_duty))
 
         # Avoid waving due to iron inertia. and return to 0 slowly
-        status['m1_smoothed'] = chaser(m1_duty, status['m1_smoothed'], increment=600, decrement=200)
+        status['m1_smoothed'] = chaser(m1_duty, status['m1_smoothed'], increment=2000, decrement=1000)
         data["meter"]["m1"]["v"] = status['m1_smoothed']
         
         # How long since we started running
         status['duration'] = get_run_time(start_time)
 
+        # Get failed packets in K
+        failedK = "{:.1f}".format(transmitter.failed_packets/1000)
+
         status['load_average'] = os.getloadavg()[0]
 
         # Setup LCD Display Data
-        data["LCD"]["0"] = f"{status['metric_label']}: {latest_data['v1']['value']:6.2f} V{status['metric_value']:03} L{status['load_average']:.2f}           "[:24]
-        data["LCD"]["1"] = f"{status['duration']} T{status['tx_time']:3.2f} F{transmitter.failed_packets}"
-        data["LCD"]["2"] = f"Sent: {transmitter.sent_packets}"
-      
-        # data["meta"]["pc"] = transmitter.sent_packets
-        # data["meta"]["fc"] = transmitter.failed_packets
+        data["LCD"]["0"] = f"{status['metric_label']}{status['metric_value']:02} PT{int(status['tx_time']*1000)} L{status['load_average']:.2f}           "[:16]
+        data["LCD"]["1"] = f"{status['duration'][:-3]} F:{failedK}     "[:16]
+
+        data["meta"]["pc"] = transmitter.sent_packets
+        data["meta"]["fc"] = transmitter.failed_packets
 
         # Transmit data and return average packet time and packets until ack
-        status['tx_time'], status['ack_time'], largest_packet  = await transmitter.transmit(data)
-
-
-        status['raw_data_size'] = len(str(data))
-        status['max_packet_size'] = max(status['max_packet_size'],largest_packet)
+        status['tx_time'], status['ack_time']  = await transmitter.transmit(data)
 
         status['failed_packets'] = transmitter.failed_packets
         status['sent_packets'] = transmitter.sent_packets
@@ -249,7 +242,7 @@ def handle_sigint(signum, frame):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run main with location context.")
-    parser.add_argument("--location", choices=["home", "work",'test',"esp32-test","esp32-main"], default="home",
+    parser.add_argument("--location", choices=["home", "work",'test',  'esp32-test'], default="home",
                         help="Specify the location: 'home' or 'work'")
     parser.add_argument("--debug", action='store_true',
                         help="Turn on debug")

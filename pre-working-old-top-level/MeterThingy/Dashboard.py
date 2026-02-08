@@ -34,7 +34,6 @@ class Dashboard:
             ("Packet Time", f"{status['tx_time']:.3f}"),
             ("TTACK", f"{status['ack_time']:2d}"),
             ("Sent Packets", f"{status['sent_packets']}"),
-            ("Raw Data Size / Max Packed Size", f"{status['raw_data_size']} / {status['max_packet_size']}"),
             ("[red]Failed Packets", f"[red]{status['failed_packets']}")
         ]
         

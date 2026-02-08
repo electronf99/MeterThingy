@@ -3,7 +3,6 @@ import msgpack
 from MeterThingy.ble20Packets import ble20Packets
 import time
 from time import sleep
-import asyncio
 
 
 class Transmitter:
@@ -40,11 +39,8 @@ class Transmitter:
             print("Not Connected")
             await self.connect()
         try:
-            ############
-            #ack=False
-            ############
-            await self.client.write_gatt_char(self.char_uuid, data, ack)
-            await asyncio.sleep(0.04)
+            await self.client.write_gatt_char(self.char_uuid, data, True)
+            time.sleep(0.01)
             #print(f"Sent: {data}")
         except BleakError as e:
             print(f"Write failed: {e}")
@@ -57,11 +53,9 @@ class Transmitter:
         mpack = msgpack.packb(data)
         packets = self.packer.build_packets(mpack)
         duration = 0
-        largest_packet  = 0
 
         # Should we ack this time?
-        if self.ack_interval > 0:
-            self.ack_loop_count += 1
+        self.ack_loop_count += 1
         
         if self.ack_interval > 0 and self.ack_loop_count == self.ack_interval:
             ack = True
@@ -70,7 +64,7 @@ class Transmitter:
             ack = False
 
         if self.dry_run:
-            sleep(0.1)
+            sleep(0.3)
         else:
             try:
 
@@ -78,15 +72,14 @@ class Transmitter:
                 count = 1
                 for packet in packets:
                     count += 1
-                                                 
-                    if ack is True: #and count == len(packets):
+
+                                                        
+                    if ack is True and count == len(packets):
                         print("Requesting ack.. ", end="")
                         await self.send_data(packet, True)
                         print("ack received")
                     else:
                         await self.send_data(packet, False)
-
-                largest_packet = max(largest_packet, len(packet) )
                     
                 end_time = time.perf_counter()
                 duration = (end_time - start_time) / float(len(packets))
@@ -96,5 +89,5 @@ class Transmitter:
                 self.failed_packets += 1
                 await self.disconnect()
         
-        return duration, (self.ack_interval - self.ack_loop_count), largest_packet
+        return duration, (self.ack_interval - self.ack_loop_count)
 
